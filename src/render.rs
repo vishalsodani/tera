@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashMap};
+use std::collections::HashMap;
 
 use serde_json::map::Map;
 use serde_json::to_string_pretty;
@@ -466,7 +466,7 @@ impl<'a> Renderer<'a> {
     }
 
     // evaluates conditions and render bodies accordingly
-    fn render_if(&mut self, condition_nodes: &VecDeque<Node>, else_node: &Option<Box<Node>>) -> Result<String> {
+    fn render_if(&mut self, condition_nodes: &Vec<Node>, else_node: &Option<Box<Node>>) -> Result<String> {
         let mut skip_else = false;
         let mut output = String::new();
         for node in condition_nodes {

@@ -60,7 +60,7 @@ impl fmt::Display for Operator {
 /// All nodes in Tera AST
 pub enum Node {
     /// Container node
-    List(VecDeque<Node>),
+    List(Vec<Node>),
     /// Plain text
     Text(String),
     /// Int
@@ -95,7 +95,7 @@ pub enum Node {
     /// The condition nodes are a list of `Conditional` node
     If {
         /// First item if the if, all the ones after are elif
-        condition_nodes: VecDeque<Node>,
+        condition_nodes: Vec<Node>,
         /// Only there if the if has an else clause
         else_node: Option<Box<Node>>
     },
@@ -133,7 +133,7 @@ pub enum Node {
         /// Name of the macro
         name: String,
         /// Name of the macro parameters
-        params: VecDeque<String>,
+        params: Vec<String>,
         /// Body of the macro, a `List` node
         body: Box<Node>
     },
@@ -169,7 +169,7 @@ pub enum Node {
         /// Name of the test
         name: String,
         /// Any optional param given to the test
-        params: VecDeque<Node>
+        params: Vec<Node>
     },
 
     /// A filter node `| round(method="ceil")`
@@ -193,7 +193,7 @@ pub enum Node {
         /// Name of the variable
         name: String,
         /// Optional list of `Filter` node
-        filters: Option<VecDeque<Node>>
+        filters: Option<Vec<Node>>
     },
     /// Set a variable in the context
     Set {
@@ -215,7 +215,7 @@ pub enum Node {
 impl Node {
     /// Used on if and list nodes to get their children.
     /// Will panic when used on any other node
-    pub fn get_children(&self) -> &VecDeque<Node> {
+    pub fn get_children(&self) -> &Vec<Node> {
         match *self {
             Node::List(ref l) => l,
             Node::If {ref condition_nodes, ..} => condition_nodes,
@@ -223,6 +223,7 @@ impl Node {
         }
     }
 }
+
 
 impl_rdp! {
     grammar! {
@@ -412,21 +413,21 @@ impl_rdp! {
             }
         }
 
-        _template(&self) -> Result<VecDeque<Node>> {
+        _template(&self) -> Result<Vec<Node>> {
             (_: extends_tag, &name: string, tail: _template()) => {
                 let mut tail2 = tail?;
-                tail2.push_front(Node::Extends(name.replace("\"", "").to_string()));
+                tail2.push(Node::Extends(name.replace("\"", "").to_string()));
                 Ok(tail2)
             },
             (_: extends_tag, &name: string) => {
-                let mut body = VecDeque::new();
-                body.push_front(Node::Extends(name.replace("\"", "").to_string()));
+                let mut body = vec![];
+                body.push(Node::Extends(name.replace("\"", "").to_string()));
                 Ok(body)
             },
             (_: content, node: _content(), tail: _template()) => {
                 let mut tail2 = tail?;
                 match node? {
-                    Some(n) => { tail2.push_front(n); }
+                    Some(n) => { tail2.push(n); }
                     None => ()
                 };
                 Ok(tail2)
@@ -434,7 +435,7 @@ impl_rdp! {
             (_: macro_content, node: _content(), tail: _template()) => {
                 let mut tail2 = tail?;
                 match node? {
-                    Some(n) => { tail2.push_front(n); }
+                    Some(n) => { tail2.push(n); }
                     None => ()
                 };
                 Ok(tail2)
@@ -442,12 +443,12 @@ impl_rdp! {
             (_: block_content, node: _content(), tail: _template()) => {
                 let mut tail2 = tail?;
                 match node? {
-                    Some(n) => { tail2.push_front(n); }
+                    Some(n) => { tail2.push(n); }
                     None => ()
                 };
                 Ok(tail2)
             },
-            () => Ok(VecDeque::new())
+            () => Ok(vec![])
         }
 
         // Option since we don't want comments in the AST
@@ -478,6 +479,7 @@ impl_rdp! {
                 }))
             },
             (_: variable_tag, exp: _expression()) => {
+                print!("a");
                 Ok(Some(Node::VariableBlock(Box::new(exp?))))
             },
             (_: set_tag, &set_name: simple_ident, _: macro_call, &namespace: simple_ident, &name: simple_ident, params: _fn_args()) => {
@@ -500,14 +502,14 @@ impl_rdp! {
                 Ok(Some(Node::FilterSection{
                     name: name.to_string(),
                     params: params?,
-                    body: Box::new(Node::List(body?))
+                    body: Box::new(Node::List(body?.into()))
                 }))
             },
             (_: filter_tag, _call: fn_call, &name: simple_ident, body: _template(), _: endfilter_tag) => {
                 Ok(Some(Node::FilterSection{
                     name: name.to_string(),
                     params: HashMap::new(),
-                    body: Box::new(Node::List(body?))
+                    body: Box::new(Node::List(body?.into()))
                 }))
             },
             (_: block_tag, &name: identifier, body: _template(), _: endblock_tag, &end_name: identifier) => {
@@ -520,7 +522,7 @@ impl_rdp! {
                 }
                 Ok(Some(Node::Block {
                     name: name.to_string(),
-                    body: Box::new(Node::List(body?))
+                    body: Box::new(Node::List(body?.into()))
                 }))
             },
             (_: macro_tag, &name: identifier, params: _macro_def_params(), body: _template(), _: endmacro_tag, &end_name: identifier) => {
@@ -533,8 +535,8 @@ impl_rdp! {
                 }
                 Ok(Some(Node::Macro {
                     name: name.to_string(),
-                    params: params,
-                    body: Box::new(Node::List(body?))
+                    params: params.into(),
+                    body: Box::new(Node::List(body?.into()))
                 }))
             },
             // Array forloop
@@ -543,7 +545,7 @@ impl_rdp! {
                     key: None,
                     value: value.to_string(),
                     container: Box::new(Node::Identifier {name: container.to_string(), filters: None}),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 }))
             },
             // Key value forloop
@@ -552,7 +554,7 @@ impl_rdp! {
                     key: Some(key.to_string()),
                     value: value.to_string(),
                     container: Box::new(Node::Identifier {name: container.to_string(), filters: None}),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 }))
             },
             // Key value forloop with filter
@@ -561,7 +563,7 @@ impl_rdp! {
                     key: Some(key.to_string()),
                     value: value.to_string(),
                     container: Box::new(container?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 }))
             },
             // Array forloop with filter(s) on container or global fn
@@ -570,7 +572,7 @@ impl_rdp! {
                     key: None,
                     value: value.to_string(),
                     container: Box::new(container?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 }))
             },
             // only if
@@ -578,11 +580,11 @@ impl_rdp! {
                 let mut condition_nodes = VecDeque::new();
                 condition_nodes.push_front(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 });
 
                 Ok(Some(Node::If {
-                    condition_nodes: condition_nodes,
+                    condition_nodes: condition_nodes.into(),
                     else_node: None,
                 }))
             },
@@ -591,7 +593,7 @@ impl_rdp! {
                 let mut condition_nodes = VecDeque::new();
                 condition_nodes.push_front(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 });
 
                 for elif in elifs? {
@@ -599,8 +601,8 @@ impl_rdp! {
                 }
 
                 Ok(Some(Node::If {
-                    condition_nodes: condition_nodes,
-                    else_node: Some(Box::new(Node::List(else_body?))),
+                    condition_nodes: condition_nodes.into(),
+                    else_node: Some(Box::new(Node::List(else_body?.into()))),
                 }))
             },
             // if/elifs
@@ -608,7 +610,7 @@ impl_rdp! {
                 let mut condition_nodes = VecDeque::new();
                 condition_nodes.push_front(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 });
 
                 for elif in elifs? {
@@ -616,7 +618,7 @@ impl_rdp! {
                 }
 
                 Ok(Some(Node::If {
-                    condition_nodes: condition_nodes,
+                    condition_nodes: condition_nodes.into(),
                     else_node: None,
                 }))
             },
@@ -625,12 +627,12 @@ impl_rdp! {
                 let mut condition_nodes = VecDeque::new();
                 condition_nodes.push_front(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 });
 
                 Ok(Some(Node::If {
-                    condition_nodes: condition_nodes,
-                    else_node: Some(Box::new(Node::List(else_body?))),
+                    condition_nodes: condition_nodes.into(),
+                    else_node: Some(Box::new(Node::List(else_body?.into()))),
                 }))
             },
             (_: super_tag) => {
@@ -648,7 +650,7 @@ impl_rdp! {
                 Ok(Node::Test {
                     expression: Box::new(exp?),
                     name: name,
-                    params: params,
+                    params: params.into(),
                 })
             },
             // Expression without a test.
@@ -670,13 +672,13 @@ impl_rdp! {
             (_: if_tag, cond: _condition(), body: _template()) => {
                 Ok(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 })
             },
             (_: elif_tag, cond: _condition(), body: _template()) => {
                 Ok(Node::Conditional {
                     condition: Box::new(cond?),
-                    body: Box::new(Node::List(body?)),
+                    body: Box::new(Node::List(body?.into())),
                 })
             },
         }
@@ -820,7 +822,7 @@ impl_rdp! {
             (_: identifier_with_filter, &ident: identifier, tail: _filters()) => {
                 Ok(Node::Identifier {
                     name: ident.to_string(),
-                    filters: Some(tail?),
+                    filters: Some(tail?.into()),
                 })
             },
             // single not used {% if not admin %} => equivalent to {% if admin == false %}

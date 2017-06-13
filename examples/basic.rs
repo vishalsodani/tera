@@ -11,7 +11,7 @@ use serde_json::value::{Value, to_value};
 
 lazy_static! {
     pub static ref TEMPLATES: Tera = {
-        let mut tera = compile_templates!("examples/templates/**/*");
+        let mut tera = compile_templates!("examples/templates/**/many_*");
         tera.autoescape_on(vec!["html", ".sql"]);
         tera.register_filter("do_nothing", do_nothing_filter);
         tera
@@ -31,7 +31,7 @@ fn main() {
     context.add("bio", &"<script>alert('pwnd');</script>");
 
     // A one off template
-    Tera::one_off("hello", &Context::new(), true).unwrap();
+    // Tera::one_off("hello", &Context::new(), true).unwrap();
 
     match TEMPLATES.render("users/profile.html", &context) {
         Ok(s) => println!("{:?}", s),
