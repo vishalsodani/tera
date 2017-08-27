@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0 (unreleased)
+
+### Breaking changes
+
+- Tests parentheses are now mandatory if there are arguments (`divisibleby 2` -> `divisibleby(2)`)
+
+### Others
+
+- Tests are now expressions and can be combined like so: `if x is divisibleby(2) and x > 10`
 
 ## 0.10.10 (2017-08-24)
 
